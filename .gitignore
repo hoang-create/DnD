@@ -1,0 +1,5 @@
+﻿dom_dump*.txt
+edge_err.txt
+*.log
+.DS_Store
+Thumbs.db

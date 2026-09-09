@@ -1,0 +1,2534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Haul Masters 3D — Stickman Sprint Edition</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <!-- Three.js and Cannon.js Physics Engines -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0d1117;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #ffffff;
+      touch-action: none;
+    }
+
+    #webgl-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      display: block;
+    }
+
+    /* UI Overlay Container */
+    #ui-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px 20px;
+    }
+
+    /* Header Bar */
+    .header-bar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      width: 100%;
+      max-width: 1080px;
+      margin: 0 auto;
+      gap: 16px;
+      pointer-events: auto;
+    }
+
+    /* Player Card with Integrated Stamina Meter */
+    .player-hud-card {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 18px;
+      padding: 10px 16px;
+      border: 2px solid rgba(56, 189, 248, 0.6);
+      box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
+      min-width: 220px;
+      transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .player-hud-card.bump {
+      transform: scale(1.08);
+    }
+
+    .player-top-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .team-badge {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1.05rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+    .team-badge.player {
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.5);
+    }
+    .team-badge.bot {
+      background: linear-gradient(135deg, #e11d48, #fb7185);
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(225, 29, 72, 0.5);
+    }
+
+    .score-info {
+      display: flex;
+      flex-direction: column;
+    }
+    .score-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      opacity: 0.8;
+      line-height: 1;
+    }
+    .score-value {
+      font-size: 1.6rem;
+      font-weight: 900;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+    .score-value.player { color: #38bdf8; }
+    .score-value.bot { color: #fb7185; }
+
+    /* Stamina Bar in HUD */
+    .stamina-hud-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      width: 100%;
+    }
+    .stamina-hud-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    .stamina-hud-labels.exhausted {
+      color: #ef4444;
+      animation: flashText 0.5s infinite alternate;
+    }
+    @keyframes flashText {
+      from { opacity: 0.4; }
+      to { opacity: 1; }
+    }
+    .stamina-track {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+    .stamina-fill {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, #0284c7, #38bdf8);
+      border-radius: 6px;
+      transition: width 0.08s linear, background 0.2s;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+    }
+    .stamina-fill.low {
+      background: linear-gradient(90deg, #d97706, #facc15);
+      box-shadow: 0 0 10px rgba(250, 204, 21, 0.6);
+    }
+    .stamina-fill.exhausted {
+      background: linear-gradient(90deg, #dc2626, #ef4444);
+      box-shadow: 0 0 14px rgba(239, 68, 68, 0.9);
+      animation: pulseExhaust 0.4s infinite alternate;
+    }
+    @keyframes pulseExhaust {
+      from { opacity: 0.6; }
+      to { opacity: 1; }
+    }
+
+    /* Timer Pill */
+    .timer-pill {
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 22px;
+      padding: 8px 22px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 2px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 8px 22px rgba(0,0,0,0.4);
+      min-width: 120px;
+    }
+    .timer-pill.urgent {
+      border-color: #ef4444;
+      animation: pulseAlert 0.8s infinite alternate;
+    }
+    @keyframes pulseAlert {
+      from { box-shadow: 0 0 14px rgba(239, 68, 68, 0.4); transform: scale(1); }
+      to { box-shadow: 0 0 28px rgba(239, 68, 68, 0.9); transform: scale(1.06); }
+    }
+    .timer-label {
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #94a3b8;
+    }
+    .timer-val {
+      font-size: 1.75rem;
+      font-weight: 900;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      color: #f8fafc;
+    }
+    .timer-pill.urgent .timer-val {
+      color: #f87171;
+    }
+
+    /* Bot HUD Card */
+    .bot-hud-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 18px;
+      padding: 10px 18px;
+      border: 2px solid rgba(244, 63, 94, 0.6);
+      box-shadow: 0 0 20px rgba(225, 29, 72, 0.3);
+      min-width: 170px;
+      justify-content: flex-end;
+      transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .bot-hud-card.bump {
+      transform: scale(1.08);
+    }
+
+    /* Sound Mute Button */
+    .top-action-btn {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #fff;
+      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: all 0.2s;
+    }
+    .top-action-btn:hover {
+      background: rgba(30, 41, 59, 0.95);
+      transform: scale(1.08);
+    }
+
+    /* Status Notification & Floating Tooltip */
+    #status-hint {
+      position: absolute;
+      top: 92px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9);
+      border: 1.5px solid rgba(255, 255, 255, 0.2);
+      backdrop-filter: blur(8px);
+      padding: 8px 20px;
+      border-radius: 30px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: #e2e8f0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s, transform 0.25s;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    #status-hint.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .key-badge {
+      background: #38bdf8;
+      color: #042f2e;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-weight: 800;
+      font-size: 0.78rem;
+    }
+    .key-badge.shift {
+      background: #a855f7;
+      color: #ffffff;
+    }
+
+    /* Carry Status Indicator */
+    #carry-indicator {
+      position: absolute;
+      bottom: 95px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s, transform 0.2s;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #carry-indicator.light {
+      background: rgba(234, 179, 8, 0.95);
+      color: #422006;
+      opacity: 1;
+      box-shadow: 0 0 16px rgba(234, 179, 8, 0.6);
+    }
+    #carry-indicator.heavy {
+      background: rgba(249, 115, 22, 0.95);
+      color: #431407;
+      opacity: 1;
+      box-shadow: 0 0 20px rgba(249, 115, 22, 0.7);
+    }
+
+    /* Bottom Desktop Legend */
+    .controls-bottom {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      padding-bottom: 6px;
+    }
+    #desktop-legend {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 16px;
+      padding: 10px 24px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      pointer-events: auto;
+    }
+    #desktop-legend span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #desktop-legend kbd {
+      background: rgba(255, 255, 255, 0.18);
+      color: #fff;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.76rem;
+      font-weight: 800;
+      border-bottom: 2px solid rgba(0,0,0,0.35);
+    }
+
+    /* Modals: Start & Game Over */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(10, 15, 28, 0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      transition: opacity 0.3s;
+    }
+    .modal-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    .modal-card {
+      background: linear-gradient(160deg, #1e293b, #0f172a);
+      border: 2px solid rgba(255, 255, 255, 0.16);
+      border-radius: 26px;
+      max-width: 520px;
+      width: 100%;
+      padding: 32px 28px;
+      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+      position: relative;
+    }
+
+    .modal-title {
+      font-size: 2.3rem;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+      line-height: 1.1;
+    }
+    .modal-title.victory {
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .modal-title.defeat {
+      background: linear-gradient(135deg, #f43f5e, #fb923c);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .modal-title.tie {
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .modal-sub {
+      color: #94a3b8;
+      font-size: 0.95rem;
+      margin-bottom: 22px;
+      font-weight: 600;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .stat-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .stat-box.player-stat {
+      border-color: rgba(56, 189, 248, 0.35);
+      background: rgba(56, 189, 248, 0.1);
+    }
+    .stat-box.bot-stat {
+      border-color: rgba(244, 63, 94, 0.35);
+      background: rgba(244, 63, 94, 0.1);
+    }
+    .stat-number {
+      font-size: 2.1rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      opacity: 0.8;
+    }
+
+    .rules-list {
+      text-align: left;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      font-size: 0.88rem;
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+    .rules-list li {
+      margin-left: 18px;
+      margin-bottom: 6px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      border: none;
+      color: #fff;
+      font-family: inherit;
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      padding: 14px 36px;
+      border-radius: 16px;
+      cursor: pointer;
+      box-shadow: 0 10px 25px -4px rgba(37, 99, 235, 0.6);
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 30px -4px rgba(37, 99, 235, 0.75);
+    }
+    .btn-primary:active {
+      transform: translateY(1px);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 3D Render Canvas -->
+  <canvas id="webgl-canvas"></canvas>
+
+  <!-- UI Overlay -->
+  <div id="ui-container">
+    
+    <!-- Header with Scores, Stamina Meter, and Timer -->
+    <header class="header-bar">
+      <!-- Player Score Card with Stamina Gauge -->
+      <div class="player-hud-card" id="player-score-card">
+        <div class="player-top-row">
+          <div class="team-badge player">P1</div>
+          <div class="score-info">
+            <span class="score-label">Player (You)</span>
+            <span class="score-value player" id="player-score">0</span>
+          </div>
+        </div>
+        <!-- Stamina Bar -->
+        <div class="stamina-hud-wrap">
+          <div class="stamina-hud-labels" id="stamina-label-wrap">
+            <span>Sprint Stamina (Shift)</span>
+            <span id="stamina-pct">100%</span>
+          </div>
+          <div class="stamina-track">
+            <div class="stamina-fill" id="stamina-bar-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Match Timer -->
+      <div class="timer-pill" id="timer-pill">
+        <span class="timer-label">Match Time</span>
+        <span class="timer-val" id="timer-display">01:00</span>
+      </div>
+
+      <!-- Bot Score Card -->
+      <div class="bot-hud-card" id="bot-score-card">
+        <div class="score-info" style="text-align: right;">
+          <span class="score-label">Bot AI</span>
+          <span class="score-value bot" id="bot-score">0</span>
+        </div>
+        <div class="team-badge bot">BOT</div>
+      </div>
+
+      <!-- Sound Mute Button -->
+      <button class="top-action-btn" id="mute-btn" title="Toggle Sound">
+        <svg id="sound-icon-on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+        <svg id="sound-icon-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Contextual Status Hint -->
+    <div id="status-hint">
+      <span>Near item: Click or press <span class="key-badge">SPACE</span> to Pick Up &bull; Press <span class="key-badge">SPACE</span> to Drop</span>
+    </div>
+
+    <!-- Carry Status Indicator -->
+    <div id="carry-indicator">
+      <span id="carry-text">HAULING ITEM</span>
+    </div>
+
+    <!-- Bottom Controls & Legends -->
+    <div class="controls-bottom">
+      <div id="desktop-legend">
+        <span><kbd>WASD</kbd> Move</span>
+        <span>Click / <kbd>SPACE</kbd> Pick Up Light (Both Hands)</span>
+        <span><kbd>SPACE</kbd> Drag Heavy (No Sprint)</span>
+        <span><kbd>SHIFT</kbd> Sprint</span>
+        <span>Deposit in <strong style="color: #38bdf8;">BLUE Zone</strong>!</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Start Game Modal -->
+  <div class="modal-overlay" id="start-modal">
+    <div class="modal-card">
+      <h1 class="modal-title" style="color: #38bdf8;">HAUL MASTERS 3D</h1>
+      <p class="modal-sub">Hyper-Casual Physics & Stickman Edition</p>
+      
+      <ul class="rules-list">
+        <li><strong>Goal:</strong> Haul furniture into your <strong>BLUE Zone</strong> (left) before time runs out!</li>
+        <li><strong>Light Items (Yellow):</strong> <strong>Click</strong> or press <span class="key-badge">SPACE</span> to pick up with both hands! Moves normally (+10 pts). Press <span class="key-badge">SPACE</span> again to drop.</li>
+        <li><strong>Heavy Items (Orange):</strong> Dragged with <span class="key-badge">SPACE</span> (+30 pts). Cannot be flung into the air and <strong>Sprint is disabled</strong>.</li>
+        <li><strong>Physics Anti-Bug:</strong> Characters stay grounded—no jumping on top of or kicking objects.</li>
+        <li><strong>Speed Boost:</strong> Hold <span class="key-badge shift">SHIFT</span> to sprint (consumes stamina, recovers in 2s upon release).</li>
+      </ul>
+
+      <button class="btn-primary" id="start-btn">
+        <span>START MATCH (60s)</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- End Game Overlay (Victory / Defeat) -->
+  <div class="modal-overlay hidden" id="game-over-modal">
+    <div class="modal-card">
+      <h2 class="modal-title" id="end-title">VICTORY!</h2>
+      <p class="modal-sub" id="end-subtitle">Match completed after 60 seconds.</p>
+      
+      <div class="stats-grid">
+        <div class="stat-box player-stat">
+          <span class="stat-number" id="final-player-score" style="color: #38bdf8;">0</span>
+          <span class="stat-label">Your Points</span>
+        </div>
+        <div class="stat-box bot-stat">
+          <span class="stat-number" id="final-bot-score" style="color: #fb7185;">0</span>
+          <span class="stat-label">Bot Points</span>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="restart-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+        </svg>
+        <span>PLAY AGAIN</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Game Script -->
+  <script>
+    /* ==========================================================================
+       1. PROCEDURAL AUDIO SYNTHESIZER (Web Audio API)
+       ========================================================================== */
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playGrab() {
+        if (this.muted || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(260, now);
+          osc.frequency.exponentialRampToValueAtTime(540, now + 0.08);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playRelease() {
+        if (this.muted || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(360, now);
+          osc.frequency.exponentialRampToValueAtTime(150, now + 0.09);
+          gain.gain.setValueAtTime(0.18, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        } catch (e) {}
+      }
+
+      playScore(isHeavy, isPlayer) {
+        if (this.muted || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const notes = isHeavy ? (isPlayer ? [523.25, 659.25, 783.99, 1046.50] : [392.00, 493.88, 587.33]) 
+                                : (isPlayer ? [440, 554.37, 659.25] : [349.23, 440]);
+          notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = isHeavy ? 'triangle' : 'sine';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+            gain.gain.setValueAtTime(0.18, now + idx * 0.06);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.22);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now + idx * 0.06);
+            osc.stop(now + idx * 0.06 + 0.23);
+          });
+        } catch (e) {}
+      }
+
+      playExhausted() {
+        if (this.muted || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(160, now);
+          osc.frequency.linearRampToValueAtTime(110, now + 0.15);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.16);
+        } catch (e) {}
+      }
+
+      playRecovered() {
+        if (this.muted || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(520, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
+          gain.gain.setValueAtTime(0.14, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.12);
+        } catch (e) {}
+      }
+
+      playTick() {
+        if (this.muted || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, now);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.06);
+        } catch (e) {}
+      }
+
+      playGameOver(victory) {
+        if (this.muted || !this.ctx) return;
+        try {
+          const now = this.ctx.currentTime;
+          if (victory) {
+            const fanfare = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+            fanfare.forEach((freq, i) => {
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = 'triangle';
+              osc.frequency.setValueAtTime(freq, now + i * 0.09);
+              gain.gain.setValueAtTime(0.25, now + i * 0.09);
+              gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.09 + 0.4);
+              osc.connect(gain);
+              gain.connect(this.ctx.destination);
+              osc.start(now + i * 0.09);
+              osc.stop(now + i * 0.09 + 0.42);
+            });
+          } else {
+            const chords = [392.00, 369.99, 329.63, 261.63];
+            chords.forEach((freq, i) => {
+              const osc = this.ctx.createOscillator();
+              const gain = this.ctx.createGain();
+              osc.type = 'sawtooth';
+              osc.frequency.setValueAtTime(freq, now + i * 0.12);
+              gain.gain.setValueAtTime(0.15, now + i * 0.12);
+              gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.12 + 0.35);
+              osc.connect(gain);
+              gain.connect(this.ctx.destination);
+              osc.start(now + i * 0.12);
+              osc.stop(now + i * 0.12 + 0.38);
+            });
+          }
+        } catch (e) {}
+      }
+    }
+
+    const sound = new SoundFX();
+
+    /* ==========================================================================
+       2. CONFIGURATION & CONSTANTS (LANDSCAPE ARENA)
+       ========================================================================== */
+    const CONFIG = {
+      MATCH_DURATION: 60, // seconds
+      BASE_PLAYER_SPEED: 8.5,
+      BOOST_PLAYER_SPEED: 13.6, // 1.6x sprint speed
+      EXHAUSTED_SPEED: 4.8,     // Sluggish walk when stamina = 0
+      STAMINA_DRAIN_RATE: 28,   // ~3.5s sprint duration
+      STAMINA_RECOVER_RATE: 50, // Recovers 0 to 100 in exactly 2.0s
+      BASE_BOT_SPEED: 7.8,
+      GRAB_RADIUS: 2.3,
+      LIGHT_ITEM: {
+        score: 10,
+        speedMultiplier: 1.0, // Moves normally!
+        color: 0xfacc15,
+        accent: 0xeab308,
+        label: 'Light'
+      },
+      HEAVY_ITEM: {
+        score: 30,
+        speedMultiplier: 0.50, // 50% slowdown
+        color: 0xf97316,
+        accent: 0xe11d48,
+        label: 'Heavy'
+      },
+      // LANDSCAPE MAP LAYOUT:
+      // Player Blue Zone: West (x = -12.5)
+      // Bot Red Zone: East (x = 12.5)
+      ZONES: {
+        PLAYER: { x: -12.5, z: 0, width: 5.5, depth: 6.5 },
+        BOT: { x: 12.5, z: 0, width: 5.5, depth: 6.5 }
+      },
+      ROOM: {
+        width: 15.5,
+        depth: 11.5,
+        wallThickness: 0.5,
+        wallHeight: 2.2,
+        doorWidth: 3.8
+      }
+    };
+
+    /* ==========================================================================
+       3. GAME STATE
+       ========================================================================== */
+    const STATE = {
+      active: false,
+      timeLeft: CONFIG.MATCH_DURATION,
+      playerScore: 0,
+      botScore: 0,
+      stamina: 100,
+      isExhausted: false,
+      items: [],
+      particles: []
+    };
+
+    /* ==========================================================================
+       4. THREE.JS SCENE SETUP & LANDSCAPE ISOMETRIC CAMERA
+       ========================================================================== */
+    const canvas = document.getElementById('webgl-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+    scene.fog = new THREE.FogExp2(0x0f172a, 0.015);
+
+    // Landscape Isometric Camera (~60 degrees elevation)
+    const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 23.5, 17.5);
+    camera.lookAt(0, 0.8, 0);
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    /* ==========================================================================
+       5. CANNON.JS PHYSICS WORLD
+       ========================================================================== */
+    const world = new CANNON.World();
+    world.gravity.set(0, -25, 0);
+    world.broadphase = new CANNON.NaiveBroadphase();
+    world.solver.iterations = 10;
+
+    const defaultMaterial = new CANNON.Material('default');
+    const playerPhysicsMaterial = new CANNON.Material('character');
+    const itemPhysicsMaterial = new CANNON.Material('item');
+
+    const charItemContact = new CANNON.ContactMaterial(playerPhysicsMaterial, itemPhysicsMaterial, {
+      friction: 0.2,
+      restitution: 0.0 // No kicking bounce or popping!
+    });
+    const defaultItemContact = new CANNON.ContactMaterial(defaultMaterial, itemPhysicsMaterial, {
+      friction: 0.4,
+      restitution: 0.0
+    });
+    world.addContactMaterial(charItemContact);
+    world.addContactMaterial(defaultItemContact);
+
+    const groundBody = new CANNON.Body({
+      mass: 0,
+      shape: new CANNON.Plane(),
+      material: defaultMaterial
+    });
+    groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+    world.addBody(groundBody);
+
+    /* ==========================================================================
+       6. LIGHTING & ENVIRONMENT
+       ========================================================================== */
+    const hemiLight = new THREE.HemisphereLight(0xe0f2fe, 0x1e293b, 0.65);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.15);
+    sunLight.position.set(12, 28, 16);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 0.5;
+    sunLight.shadow.camera.far = 65;
+    sunLight.shadow.camera.left = -22;
+    sunLight.shadow.camera.right = 22;
+    sunLight.shadow.camera.top = 18;
+    sunLight.shadow.camera.bottom = -18;
+    sunLight.shadow.bias = -0.0005;
+    scene.add(sunLight);
+
+    const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.35);
+    fillLight.position.set(-15, 15, -10);
+    scene.add(fillLight);
+
+    // Drop-off Zone Spot/Point Lights
+    const blueSpot = new THREE.PointLight(0x0ea5e9, 2.0, 10);
+    blueSpot.position.set(CONFIG.ZONES.PLAYER.x, 3.5, CONFIG.ZONES.PLAYER.z);
+    scene.add(blueSpot);
+
+    const redSpot = new THREE.PointLight(0xf43f5e, 2.0, 10);
+    redSpot.position.set(CONFIG.ZONES.BOT.x, 3.5, CONFIG.ZONES.BOT.z);
+    scene.add(redSpot);
+
+    /* ==========================================================================
+       7. LANDSCAPE CENTRAL ROOM & OBSTACLES
+       ========================================================================== */
+    function createStaticBox(x, y, z, w, h, d, color, receiveShadow = true) {
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshLambertMaterial({ color })
+      );
+      mesh.position.set(x, y, z);
+      mesh.castShadow = true;
+      mesh.receiveShadow = receiveShadow;
+      scene.add(mesh);
+
+      const shape = new CANNON.Box(new CANNON.Vec3(w / 2, h / 2, d / 2));
+      const body = new CANNON.Body({ mass: 0, material: defaultMaterial });
+      body.addShape(shape);
+      body.position.set(x, y, z);
+      world.addBody(body);
+
+      return mesh;
+    }
+
+    // Yard Ground
+    const yardMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(50, 36),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.9 })
+    );
+    yardMesh.rotation.x = -Math.PI / 2;
+    yardMesh.receiveShadow = true;
+    scene.add(yardMesh);
+
+    // Grid Lines
+    const gridHelper = new THREE.GridHelper(48, 24, 0x334155, 0x1e293b);
+    gridHelper.position.y = 0.01;
+    scene.add(gridHelper);
+
+    // Room Floor (Warm Wood Planks in Central Area)
+    const roomFloor = new THREE.Mesh(
+      new THREE.BoxGeometry(CONFIG.ROOM.width, 0.15, CONFIG.ROOM.depth),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.6 })
+    );
+    roomFloor.position.set(0, 0.075, 0);
+    roomFloor.receiveShadow = true;
+    scene.add(roomFloor);
+
+    const roomFoundation = new THREE.Mesh(
+      new THREE.BoxGeometry(CONFIG.ROOM.width + 0.6, 0.1, CONFIG.ROOM.depth + 0.6),
+      new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.8 })
+    );
+    roomFoundation.position.set(0, 0.02, 0);
+    scene.add(roomFoundation);
+
+    // BUILD ROOM WALLS (WEST & EAST DOORWAYS FOR LANDSCAPE PLAY)
+    const W = CONFIG.ROOM.width;
+    const D = CONFIG.ROOM.depth;
+    const H = CONFIG.ROOM.wallHeight;
+    const T = CONFIG.ROOM.wallThickness;
+    const DW = CONFIG.ROOM.doorWidth;
+    const wallColor = 0xf1f5f9;
+    const wallTrimColor = 0x64748b;
+
+    // North Wall with Window Openings
+    const nSideLen = (W - 3.2) / 2;
+    createStaticBox(-W / 4 - 0.4, H / 2, -D / 2, nSideLen, H, T, wallColor);
+    createStaticBox(W / 4 + 0.4, H / 2, -D / 2, nSideLen, H, T, wallColor);
+    createStaticBox(0, 0.4, -D / 2, 3.2, 0.8, T, wallTrimColor); // Window Sill
+    createStaticBox(0, H - 0.25, -D / 2, 3.2, 0.5, T, wallTrimColor); // Window Lintel
+
+    // South Wall with Window Openings
+    createStaticBox(-W / 4 - 0.4, H / 2, D / 2, nSideLen, H, T, wallColor);
+    createStaticBox(W / 4 + 0.4, H / 2, D / 2, nSideLen, H, T, wallColor);
+    createStaticBox(0, 0.4, D / 2, 3.2, 0.8, T, wallTrimColor); // Window Sill
+    createStaticBox(0, H - 0.25, D / 2, 3.2, 0.5, T, wallTrimColor); // Window Lintel
+
+    // West Wall (Doorway Facing Player Blue Zone)
+    const wSideLen = (D - DW) / 2;
+    createStaticBox(-W / 2, H / 2, -D / 2 + wSideLen / 2, T, H, wSideLen, wallColor);
+    createStaticBox(-W / 2, H / 2, D / 2 - wSideLen / 2, T, H, wSideLen, wallColor);
+    createStaticBox(-W / 2, H - 0.2, 0, T, 0.4, DW, wallTrimColor); // Door Lintel
+
+    // East Wall (Doorway Facing Bot Red Zone)
+    createStaticBox(W / 2, H / 2, -D / 2 + wSideLen / 2, T, H, wSideLen, wallColor);
+    createStaticBox(W / 2, H / 2, D / 2 - wSideLen / 2, T, H, wSideLen, wallColor);
+    createStaticBox(W / 2, H - 0.2, 0, T, 0.4, DW, wallTrimColor); // Door Lintel
+
+    // Perimeter Fences
+    createStaticBox(0, 0.8, -17.5, 48, 1.6, 0.8, 0x334155);
+    createStaticBox(0, 0.8, 17.5, 48, 1.6, 0.8, 0x334155);
+    createStaticBox(-24, 0.8, 0, 0.8, 1.6, 35, 0x334155);
+    createStaticBox(24, 0.8, 0, 0.8, 1.6, 35, 0x334155);
+
+    // Decorative Trees
+    function createTree(x, z) {
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.25, 0.35, 1.5, 6),
+        new THREE.MeshLambertMaterial({ color: 0x78350f })
+      );
+      trunk.position.set(x, 0.75, z);
+      trunk.castShadow = true;
+      scene.add(trunk);
+
+      const foliage = new THREE.Mesh(
+        new THREE.ConeGeometry(1.2, 2.2, 6),
+        new THREE.MeshLambertMaterial({ color: 0x15803d, flatShading: true })
+      );
+      foliage.position.set(x, 2.3, z);
+      foliage.castShadow = true;
+      scene.add(foliage);
+
+      const shape = new CANNON.Cylinder(0.4, 0.4, 2, 6);
+      const body = new CANNON.Body({ mass: 0 });
+      body.addShape(shape);
+      body.position.set(x, 1, z);
+      world.addBody(body);
+    }
+
+    createTree(-14, -10);
+    createTree(-14, 10);
+    createTree(14, -10);
+    createTree(14, 10);
+    createTree(-5, -12);
+    createTree(5, -12);
+    createTree(-5, 12);
+    createTree(5, 12);
+
+    /* ==========================================================================
+       8. DROP-OFF ZONES (WEST BLUE & EAST RED)
+       ========================================================================== */
+    function createDropZone(zoneConfig, colorHex) {
+      const group = new THREE.Group();
+      group.position.set(zoneConfig.x, 0.05, zoneConfig.z);
+
+      const pad = new THREE.Mesh(
+        new THREE.BoxGeometry(zoneConfig.width, 0.1, zoneConfig.depth),
+        new THREE.MeshStandardMaterial({
+          color: colorHex,
+          roughness: 0.3,
+          metalness: 0.2,
+          emissive: colorHex,
+          emissiveIntensity: 0.35
+        })
+      );
+      pad.receiveShadow = true;
+      group.add(pad);
+
+      const borderGeo = new THREE.BufferGeometry();
+      const hw = zoneConfig.width / 2;
+      const hd = zoneConfig.depth / 2;
+      const points = [
+        new THREE.Vector3(-hw, 0.08, -hd),
+        new THREE.Vector3(hw, 0.08, -hd),
+        new THREE.Vector3(hw, 0.08, hd),
+        new THREE.Vector3(-hw, 0.08, hd),
+        new THREE.Vector3(-hw, 0.08, -hd)
+      ];
+      borderGeo.setFromPoints(points);
+      const borderLine = new THREE.Line(
+        borderGeo,
+        new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 3 })
+      );
+      group.add(borderLine);
+
+      const beaconGeo = new THREE.CylinderGeometry(0.12, 0.12, 1.2, 8);
+      const beaconMat = new THREE.MeshLambertMaterial({ color: colorHex, emissive: colorHex, emissiveIntensity: 0.6 });
+      const offsets = [
+        [-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]
+      ];
+      offsets.forEach(([ox, oz]) => {
+        const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+        beacon.position.set(ox, 0.6, oz);
+        group.add(beacon);
+      });
+
+      scene.add(group);
+      return { group, pad, borderLine };
+    }
+
+    const playerZoneObj = createDropZone(CONFIG.ZONES.PLAYER, 0x0284c7);
+    const botZoneObj = createDropZone(CONFIG.ZONES.BOT, 0xe11d48);
+
+    /* ==========================================================================
+       9. HYPER-CASUAL STICKMAN 3D CHARACTER WITH FULL ARMS & LEGS
+       ========================================================================== */
+    function createHyperCasualStickman(teamColorHex, isPlayer = false) {
+      const root = new THREE.Group();
+
+      // Materials
+      const skinMat = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+      const suitMat = new THREE.MeshLambertMaterial({ color: teamColorHex, flatShading: true });
+      const jointMat = new THREE.MeshLambertMaterial({ color: 0x1e293b, flatShading: true });
+      const handFootMat = new THREE.MeshLambertMaterial({ color: isPlayer ? 0x38bdf8 : 0xfb7185 });
+
+      // Torso / Body Pivot
+      const bodyPivot = new THREE.Group();
+      bodyPivot.position.y = 0.95;
+      root.add(bodyPivot);
+
+      // Slender Stickman Torso
+      const torsoGeo = new THREE.CylinderGeometry(0.19, 0.16, 0.72, 10);
+      const torsoMesh = new THREE.Mesh(torsoGeo, suitMat);
+      torsoMesh.castShadow = true;
+      bodyPivot.add(torsoMesh);
+
+      // Neck & Head
+      const headPivot = new THREE.Group();
+      headPivot.position.y = 0.52;
+      bodyPivot.add(headPivot);
+
+      const headGeo = new THREE.SphereGeometry(0.32, 16, 12);
+      const headMesh = new THREE.Mesh(headGeo, skinMat);
+      headMesh.castShadow = true;
+      headPivot.add(headMesh);
+
+      // Stylish Cool Visor
+      const visorGeo = new THREE.BoxGeometry(0.36, 0.14, 0.22);
+      const visorMat = new THREE.MeshBasicMaterial({ color: isPlayer ? 0x0284c7 : 0xe11d48 });
+      const visorMesh = new THREE.Mesh(visorGeo, visorMat);
+      visorMesh.position.set(0, 0.03, 0.23);
+      headPivot.add(visorMesh);
+
+      // ARMS HIERARCHY (Upper Arm + Forearm + Hand)
+      function createArm(isLeft) {
+        const sideMult = isLeft ? -1 : 1;
+        const shoulderPivot = new THREE.Group();
+        shoulderPivot.position.set(sideMult * 0.26, 0.26, 0);
+        bodyPivot.add(shoulderPivot);
+
+        // Upper Arm
+        const upperArmGeo = new THREE.CylinderGeometry(0.07, 0.065, 0.36, 8);
+        const upperArm = new THREE.Mesh(upperArmGeo, suitMat);
+        upperArm.position.y = -0.18;
+        upperArm.castShadow = true;
+        shoulderPivot.add(upperArm);
+
+        // Elbow
+        const elbowPivot = new THREE.Group();
+        elbowPivot.position.y = -0.36;
+        shoulderPivot.add(elbowPivot);
+
+        // Forearm & Hand
+        const forearmGeo = new THREE.CylinderGeometry(0.065, 0.06, 0.32, 8);
+        const forearm = new THREE.Mesh(forearmGeo, skinMat);
+        forearm.position.y = -0.16;
+        forearm.castShadow = true;
+        elbowPivot.add(forearm);
+
+        const handGeo = new THREE.SphereGeometry(0.09, 8, 8);
+        const hand = new THREE.Mesh(handGeo, handFootMat);
+        hand.position.y = -0.32;
+        elbowPivot.add(hand);
+
+        return { shoulderPivot, elbowPivot, hand };
+      }
+
+      const leftArm = createArm(true);
+      const rightArm = createArm(false);
+
+      // LEGS HIERARCHY (Hip + Thigh + Knee + Shin + Foot)
+      function createLeg(isLeft) {
+        const sideMult = isLeft ? -1 : 1;
+        const hipPivot = new THREE.Group();
+        hipPivot.position.set(sideMult * 0.14, 0.58, 0); // attached to root
+        root.add(hipPivot);
+
+        // Thigh
+        const thighGeo = new THREE.CylinderGeometry(0.085, 0.075, 0.38, 8);
+        const thigh = new THREE.Mesh(thighGeo, suitMat);
+        thigh.position.y = -0.19;
+        thigh.castShadow = true;
+        hipPivot.add(thigh);
+
+        // Knee Pivot
+        const kneePivot = new THREE.Group();
+        kneePivot.position.y = -0.38;
+        hipPivot.add(kneePivot);
+
+        // Shin
+        const shinGeo = new THREE.CylinderGeometry(0.075, 0.07, 0.36, 8);
+        const shin = new THREE.Mesh(shinGeo, skinMat);
+        shin.position.y = -0.18;
+        shin.castShadow = true;
+        kneePivot.add(shin);
+
+        // Foot / Shoe
+        const footGeo = new THREE.BoxGeometry(0.12, 0.09, 0.22);
+        const foot = new THREE.Mesh(footGeo, jointMat);
+        foot.position.set(0, -0.34, 0.04);
+        kneePivot.add(foot);
+
+        return { hipPivot, kneePivot, foot };
+      }
+
+      const leftLeg = createLeg(true);
+      const rightLeg = createLeg(false);
+
+      // Blob Shadow under Stickman
+      const shadowGeo = new THREE.CircleGeometry(0.55, 16);
+      const shadowMat = new THREE.MeshBasicMaterial({
+        color: 0x000000,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false
+      });
+      const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+      shadowMesh.rotation.x = -Math.PI / 2;
+      shadowMesh.position.y = 0.03;
+      root.add(shadowMesh);
+
+      // Visual Energy Tether Line
+      const tetherGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 0.85, 0),
+        new THREE.Vector3(0, 0.85, 1)
+      ]);
+      const tetherMat = new THREE.LineBasicMaterial({
+        color: isPlayer ? 0x38bdf8 : 0xfb7185,
+        linewidth: 3,
+        transparent: true,
+        opacity: 0
+      });
+      const tetherLine = new THREE.Line(tetherGeo, tetherMat);
+      scene.add(tetherLine);
+
+      // Floating 3D Stamina Meter above head (Only for Player)
+      let staminaBarGroup = null;
+      let staminaFillMesh = null;
+      if (isPlayer) {
+        staminaBarGroup = new THREE.Group();
+        staminaBarGroup.position.set(0, 2.15, 0);
+
+        const barBg = new THREE.Mesh(
+          new THREE.PlaneGeometry(1.2, 0.16),
+          new THREE.MeshBasicMaterial({ color: 0x0f172a, side: THREE.DoubleSide })
+        );
+        staminaBarGroup.add(barBg);
+
+        staminaFillMesh = new THREE.Mesh(
+          new THREE.PlaneGeometry(1.16, 0.12),
+          new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide })
+        );
+        staminaFillMesh.position.z = 0.01;
+        staminaBarGroup.add(staminaFillMesh);
+
+        root.add(staminaBarGroup);
+      }
+
+      scene.add(root);
+
+      // Cannon.js Sphere Body (Strictly Grounded on X-Z Plane)
+      const shape = new CANNON.Sphere(0.65);
+      const body = new CANNON.Body({
+        mass: 8,
+        material: playerPhysicsMaterial,
+        linearDamping: 0.9,
+        angularDamping: 1.0,
+        fixedRotation: true
+      });
+      // Prevent climbing on top of boxes or popping vertically into air
+      body.linearFactor = new CANNON.Vec3(1, 0, 1);
+      body.angularFactor = new CANNON.Vec3(0, 0, 0);
+      body.addShape(shape, new CANNON.Vec3(0, 0.65, 0));
+      world.addBody(body);
+
+      return {
+        mesh: root,
+        bodyPivot,
+        headPivot,
+        leftArm,
+        rightArm,
+        leftLeg,
+        rightLeg,
+        staminaBarGroup,
+        staminaFillMesh,
+        body,
+        tetherLine,
+        grabbedItem: null,
+        facingAngle: 0,
+        speedMultiplier: 1.0,
+        animTime: 0
+      };
+    }
+
+    // Player (Blue Stickman on Left)
+    const player = createHyperCasualStickman(0x0284c7, true);
+    player.body.position.set(-11, 0, 0);
+
+    // Bot (Red Stickman on Right)
+    const bot = createHyperCasualStickman(0xe11d48, false);
+    bot.body.position.set(11, 0, 0);
+
+    /* ==========================================================================
+       10. FURNITURE ITEMS & PROPS
+       ========================================================================== */
+    function createFurnitureItem(type, x, z) {
+      const isHeavy = (type === 'heavy');
+      const cfg = isHeavy ? CONFIG.HEAVY_ITEM : CONFIG.LIGHT_ITEM;
+      const group = new THREE.Group();
+
+      let meshW = isHeavy ? 1.4 : 1.0;
+      let meshH = isHeavy ? 1.1 : 0.9;
+      let meshD = isHeavy ? 1.3 : 1.0;
+
+      if (isHeavy) {
+        const mainBox = new THREE.Mesh(
+          new THREE.BoxGeometry(meshW, meshH, meshD),
+          new THREE.MeshLambertMaterial({ color: cfg.color, flatShading: true })
+        );
+        mainBox.position.y = meshH / 2;
+        mainBox.castShadow = true;
+        mainBox.receiveShadow = true;
+        group.add(mainBox);
+
+        const trim = new THREE.Mesh(
+          new THREE.BoxGeometry(meshW + 0.08, meshH * 0.25, meshD + 0.08),
+          new THREE.MeshLambertMaterial({ color: cfg.accent })
+        );
+        trim.position.y = meshH * 0.5;
+        group.add(trim);
+
+        const handle = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.12, 0.12, 0.1, 8),
+          new THREE.MeshLambertMaterial({ color: 0x1e293b })
+        );
+        handle.rotation.x = Math.PI / 2;
+        handle.position.set(0, meshH * 0.55, meshD / 2 + 0.05);
+        group.add(handle);
+      } else {
+        const crate = new THREE.Mesh(
+          new THREE.BoxGeometry(meshW, meshH, meshD),
+          new THREE.MeshLambertMaterial({ color: cfg.color, flatShading: true })
+        );
+        crate.position.y = meshH / 2;
+        crate.castShadow = true;
+        crate.receiveShadow = true;
+        group.add(crate);
+
+        const slat = new THREE.Mesh(
+          new THREE.BoxGeometry(meshW + 0.04, meshH + 0.04, 0.1),
+          new THREE.MeshLambertMaterial({ color: cfg.accent })
+        );
+        slat.position.y = meshH / 2;
+        group.add(slat);
+      }
+
+      const glowRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.65, 0.8, 16),
+        new THREE.MeshBasicMaterial({
+          color: cfg.color,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.45
+        })
+      );
+      glowRing.rotation.x = -Math.PI / 2;
+      glowRing.position.y = 0.04;
+      group.add(glowRing);
+
+      group.position.set(x, 0, z);
+      scene.add(group);
+
+      const shape = new CANNON.Box(new CANNON.Vec3(meshW / 2, meshH / 2, meshD / 2));
+      const body = new CANNON.Body({
+        mass: isHeavy ? 32 : 5,
+        material: itemPhysicsMaterial,
+        linearDamping: isHeavy ? 0.88 : 0.7,
+        angularDamping: 0.95
+      });
+      // Strictly horizontal movement on X-Z plane: objects can NEVER be flung into the air!
+      body.linearFactor = new CANNON.Vec3(1, 0, 1);
+      // Disallow roll/pitch tilting so items cannot become ramps or trip physics
+      body.angularFactor = new CANNON.Vec3(0, 1, 0);
+      body.addShape(shape, new CANNON.Vec3(0, meshH / 2, 0));
+      body.position.set(x, 0, z);
+      world.addBody(body);
+
+      const itemObj = {
+        group,
+        body,
+        glowRing,
+        type,
+        isHeavy,
+        score: cfg.score,
+        speedMultiplier: cfg.speedMultiplier,
+        color: cfg.color,
+        holder: null,
+        isCarried: false,
+        dead: false
+      };
+
+      STATE.items.push(itemObj);
+      return itemObj;
+    }
+
+    function spawnInitialItems() {
+      STATE.items.forEach(item => {
+        scene.remove(item.group);
+        world.remove(item.body);
+      });
+      STATE.items = [];
+
+      const spawnPlan = [
+        { type: 'light', x: -4.0, z: -2.2 },
+        { type: 'heavy', x: -2.0, z: 2.5 },
+        { type: 'light', x: 0.0, z: -3.0 },
+        { type: 'heavy', x: 0.0, z: 0.0 },
+        { type: 'light', x: 2.2, z: -2.0 },
+        { type: 'heavy', x: 4.2, z: 2.2 },
+        { type: 'light', x: 3.5, z: -3.5 },
+        { type: 'heavy', x: -3.8, z: -0.5 }
+      ];
+
+      spawnPlan.forEach(p => {
+        createFurnitureItem(p.type, p.x, p.z);
+      });
+    }
+
+    function checkItemReplenishment() {
+      const activeCount = STATE.items.filter(it => !it.dead).length;
+      if (activeCount < 4) {
+        for (let i = 0; i < 2; i++) {
+          const type = Math.random() > 0.5 ? 'heavy' : 'light';
+          const rx = (Math.random() - 0.5) * (CONFIG.ROOM.width - 4);
+          const rz = (Math.random() - 0.5) * (CONFIG.ROOM.depth - 3);
+          const newItem = createFurnitureItem(type, rx, rz);
+          newItem.body.position.set(rx, 0, rz);
+          spawnParticleBurst(rx, 0.5, rz, newItem.color, 16);
+        }
+      }
+    }
+
+    /* ==========================================================================
+       11. PARTICLE EFFECTS
+       ========================================================================== */
+    function spawnParticleBurst(x, y, z, colorHex, count = 24) {
+      for (let i = 0; i < count; i++) {
+        const pGeo = new THREE.BoxGeometry(0.16, 0.16, 0.16);
+        const pMat = new THREE.MeshBasicMaterial({ color: colorHex });
+        const pMesh = new THREE.Mesh(pGeo, pMat);
+        pMesh.position.set(x, y, z);
+        scene.add(pMesh);
+
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 2 + Math.random() * 5;
+        const vx = Math.cos(angle) * speed;
+        const vy = 3 + Math.random() * 5;
+        const vz = Math.sin(angle) * speed;
+
+        STATE.particles.push({
+          mesh: pMesh,
+          vel: new THREE.Vector3(vx, vy, vz),
+          life: 1.0,
+          rot: new THREE.Vector3(Math.random()*10, Math.random()*10, Math.random()*10)
+        });
+      }
+    }
+
+    function updateParticles(dt) {
+      for (let i = STATE.particles.length - 1; i >= 0; i--) {
+        const p = STATE.particles[i];
+        p.life -= dt * 1.5;
+        if (p.life <= 0) {
+          scene.remove(p.mesh);
+          p.mesh.geometry.dispose();
+          p.mesh.material.dispose();
+          STATE.particles.splice(i, 1);
+          continue;
+        }
+        p.vel.y -= 15 * dt;
+        p.mesh.position.x += p.vel.x * dt;
+        p.mesh.position.y += p.vel.y * dt;
+        p.mesh.position.z += p.vel.z * dt;
+        p.mesh.rotation.x += p.rot.x * dt;
+        p.mesh.rotation.y += p.rot.y * dt;
+        p.mesh.scale.setScalar(p.life);
+      }
+    }
+
+    /* ==========================================================================
+       12. DESKTOP KEYBOARD CONTROLS (WASD, SPACEBAR, SHIFT SPRINT)
+       ========================================================================== */
+    const INPUT = {
+      up: false,
+      down: false,
+      left: false,
+      right: false,
+      grab: false,
+      shift: false
+    };
+
+    window.addEventListener('keydown', (e) => {
+      sound.init();
+      switch (e.code) {
+        case 'KeyW': case 'ArrowUp': INPUT.up = true; break;
+        case 'KeyS': case 'ArrowDown': INPUT.down = true; break;
+        case 'KeyA': case 'ArrowLeft': INPUT.left = true; break;
+        case 'KeyD': case 'ArrowRight': INPUT.right = true; break;
+        case 'ShiftLeft':
+        case 'ShiftRight':
+          INPUT.shift = true;
+          break;
+        case 'Space':
+          // Toggle grab / drop
+          toggleGrab(player);
+          e.preventDefault();
+          break;
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      switch (e.code) {
+        case 'KeyW': case 'ArrowUp': INPUT.up = false; break;
+        case 'KeyS': case 'ArrowDown': INPUT.down = false; break;
+        case 'KeyA': case 'ArrowLeft': INPUT.left = false; break;
+        case 'KeyD': case 'ArrowRight': INPUT.right = false; break;
+        case 'ShiftLeft':
+        case 'ShiftRight':
+          INPUT.shift = false;
+          break;
+      }
+    });
+
+    /* ==========================================================================
+       13. TWO-HANDED PICKUP, DRAGGING & DROP MECHANICS
+       ========================================================================== */
+    function pickupLightItem(char, item) {
+      if (char.grabbedItem) {
+        dropItem(char);
+      }
+      char.grabbedItem = item;
+      item.holder = char;
+      item.isCarried = true;
+      item.body.collisionResponse = false;
+      char.speedMultiplier = 1.0; // Moves normally!
+      char.tetherLine.material.opacity = 0;
+      sound.playGrab();
+
+      if (char === player) {
+        showCarryIndicator('light');
+      }
+    }
+
+    function grabHeavyItem(char, item) {
+      if (char.grabbedItem) {
+        dropItem(char);
+      }
+      char.grabbedItem = item;
+      item.holder = char;
+      item.isCarried = false;
+      item.body.collisionResponse = true;
+      char.speedMultiplier = item.speedMultiplier;
+      sound.playGrab();
+
+      if (char === player) {
+        showCarryIndicator('heavy');
+      }
+    }
+
+    function dropItem(char) {
+      if (!char.grabbedItem) return;
+      const item = char.grabbedItem;
+      const forwardX = -Math.sin(char.facingAngle);
+      const forwardZ = -Math.cos(char.facingAngle);
+
+      if (item.isCarried) {
+        // Place safely on the floor in front of character
+        const dropX = char.body.position.x + forwardX * 0.85;
+        const dropZ = char.body.position.z + forwardZ * 0.85;
+        item.body.position.set(dropX, 0, dropZ);
+        item.body.velocity.set(0, 0, 0);
+        item.body.angularVelocity.set(0, 0, 0);
+        item.group.position.copy(item.body.position);
+        item.group.rotation.set(0, char.facingAngle, 0);
+        item.body.quaternion.copy(item.group.quaternion);
+        item.body.collisionResponse = true;
+        item.isCarried = false;
+      } else {
+        item.body.velocity.set(0, 0, 0);
+      }
+
+      item.holder = null;
+      char.grabbedItem = null;
+      char.speedMultiplier = 1.0;
+      char.tetherLine.material.opacity = 0;
+      sound.playRelease();
+
+      if (char === player) {
+        hideCarryIndicator();
+      }
+    }
+
+    function toggleGrab(char) {
+      if (char.grabbedItem) {
+        // Pressing grab button again drops the object to the ground
+        dropItem(char);
+        return;
+      }
+
+      // Not holding an item: search for nearest item within reach
+      const charPos = char.body.position;
+      let nearestItem = null;
+      let minDist = CONFIG.GRAB_RADIUS;
+
+      STATE.items.forEach(item => {
+        if (item.dead || (item.holder && item.holder !== char)) return;
+        const dist = charPos.distanceTo(item.body.position);
+        if (dist < minDist) {
+          minDist = dist;
+          nearestItem = item;
+        }
+      });
+
+      if (nearestItem) {
+        if (nearestItem.isHeavy) {
+          grabHeavyItem(char, nearestItem);
+        } else {
+          pickupLightItem(char, nearestItem);
+        }
+      }
+    }
+
+    // CLICK-TO-PICKUP LIGHT ITEMS WITH BOTH HANDS
+    let playerAutoTarget = null;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    window.addEventListener('pointerdown', (e) => {
+      if (!STATE.active) return;
+      if (e.button !== 0) return; // Only left click
+
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      const clickableMeshes = [];
+      const meshToItem = new Map();
+
+      STATE.items.forEach(item => {
+        if (!item.dead && !item.holder && !item.isHeavy) {
+          item.group.traverse(child => {
+            if (child.isMesh) {
+              clickableMeshes.push(child);
+              meshToItem.set(child, item);
+            }
+          });
+        }
+      });
+
+      const intersects = raycaster.intersectObjects(clickableMeshes, false);
+      if (intersects.length > 0) {
+        const targetItem = meshToItem.get(intersects[0].object);
+        if (targetItem) {
+          const dist = player.body.position.distanceTo(targetItem.body.position);
+          if (dist <= CONFIG.GRAB_RADIUS * 1.5) {
+            pickupLightItem(player, targetItem);
+            playerAutoTarget = null;
+          } else {
+            // Approach item automatically and pick it up
+            playerAutoTarget = targetItem;
+          }
+        }
+      }
+    });
+
+    // Hover Cursor Indicator for Light Items
+    window.addEventListener('pointermove', (e) => {
+      if (!STATE.active) {
+        canvas.style.cursor = 'default';
+        return;
+      }
+      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      const clickableMeshes = [];
+      STATE.items.forEach(item => {
+        if (!item.dead && !item.holder && !item.isHeavy) {
+          item.group.traverse(child => {
+            if (child.isMesh) clickableMeshes.push(child);
+          });
+        }
+      });
+
+      const intersects = raycaster.intersectObjects(clickableMeshes, false);
+      canvas.style.cursor = intersects.length > 0 ? 'pointer' : 'default';
+    });
+
+    function updateDragging(char, dt) {
+      if (!char.grabbedItem) {
+        char.tetherLine.material.opacity = 0;
+        return;
+      }
+
+      const item = char.grabbedItem;
+      const charPos = char.body.position;
+
+      if (item.isCarried) {
+        // Position light item held directly in both hands in front of chest
+        const forwardX = -Math.sin(char.facingAngle);
+        const forwardZ = -Math.cos(char.facingAngle);
+        const holdDist = 0.58;
+        item.group.position.set(
+          charPos.x + forwardX * holdDist,
+          0.88,
+          charPos.z + forwardZ * holdDist
+        );
+        item.group.rotation.y = char.facingAngle;
+        item.body.position.copy(item.group.position);
+        item.body.velocity.set(0, 0, 0);
+        char.tetherLine.material.opacity = 0;
+        return;
+      }
+
+      // Dragging Heavy Item via physics tether
+      const itemPos = item.body.position;
+      const followDist = 1.45;
+      const targetX = charPos.x - Math.sin(char.facingAngle) * followDist;
+      const targetZ = charPos.z - Math.cos(char.facingAngle) * followDist;
+
+      const dx = targetX - itemPos.x;
+      const dz = targetZ - itemPos.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+
+      if (dist > 4.2) {
+        dropItem(char);
+        return;
+      }
+
+      const pullSpeed = Math.min(dist * 10, 8.5);
+      if (dist > 0.05) {
+        item.body.velocity.x = (dx / dist) * pullSpeed;
+        item.body.velocity.z = (dz / dist) * pullSpeed;
+      }
+
+      const p1 = new THREE.Vector3(charPos.x, 0.85, charPos.z);
+      const p2 = new THREE.Vector3(itemPos.x, 0.6, itemPos.z);
+      char.tetherLine.geometry.setFromPoints([p1, p2]);
+      char.tetherLine.material.opacity = 0.85;
+    }
+
+    /* ==========================================================================
+       14. DROP-OFF ZONE SCORING
+       ========================================================================== */
+    function checkDropOffZones() {
+      // Direct carried scoring when character enters zone
+      if (player.grabbedItem) {
+        const pz = CONFIG.ZONES.PLAYER;
+        const pos = player.body.position;
+        if (
+          pos.x >= pz.x - pz.width / 2 &&
+          pos.x <= pz.x + pz.width / 2 &&
+          pos.z >= pz.z - pz.depth / 2 &&
+          pos.z <= pz.z + pz.depth / 2
+        ) {
+          scoreItem(player.grabbedItem, true);
+        }
+      }
+
+      if (bot.grabbedItem) {
+        const bz = CONFIG.ZONES.BOT;
+        const pos = bot.body.position;
+        if (
+          pos.x >= bz.x - bz.width / 2 &&
+          pos.x <= bz.x + bz.width / 2 &&
+          pos.z >= bz.z - bz.depth / 2 &&
+          pos.z <= bz.z + bz.depth / 2
+        ) {
+          scoreItem(bot.grabbedItem, false);
+        }
+      }
+
+      // Check items resting on the ground inside zones
+      STATE.items.forEach(item => {
+        if (item.dead) return;
+        const pos = item.body.position;
+
+        // Player Zone Check (West)
+        const pz = CONFIG.ZONES.PLAYER;
+        if (
+          pos.x >= pz.x - pz.width / 2 &&
+          pos.x <= pz.x + pz.width / 2 &&
+          pos.z >= pz.z - pz.depth / 2 &&
+          pos.z <= pz.z + pz.depth / 2
+        ) {
+          scoreItem(item, true);
+        }
+
+        // Bot Zone Check (East)
+        const bz = CONFIG.ZONES.BOT;
+        if (
+          pos.x >= bz.x - bz.width / 2 &&
+          pos.x <= bz.x + bz.width / 2 &&
+          pos.z >= bz.z - bz.depth / 2 &&
+          pos.z <= bz.z + bz.depth / 2
+        ) {
+          scoreItem(item, false);
+        }
+      });
+    }
+
+    function scoreItem(item, isPlayer) {
+      item.dead = true;
+      const holder = item.holder;
+      if (holder) {
+        dropItem(holder);
+      }
+
+      const points = item.score;
+      if (isPlayer) {
+        STATE.playerScore += points;
+        bumpScoreCard('player');
+        sound.playScore(item.isHeavy, true);
+        spawnParticleBurst(item.body.position.x, 1, item.body.position.z, 0x38bdf8, 30);
+      } else {
+        STATE.botScore += points;
+        bumpScoreCard('bot');
+        sound.playScore(item.isHeavy, false);
+        spawnParticleBurst(item.body.position.x, 1, item.body.position.z, 0xf43f5e, 30);
+      }
+
+      updateScoreUI();
+      scene.remove(item.group);
+      world.remove(item.body);
+      checkItemReplenishment();
+    }
+
+    /* ==========================================================================
+       15. BOT AI LOGIC (LANDSCAPE WEST/EAST PATHING)
+       ========================================================================== */
+    const BOT_AI = {
+      state: 'SEEK',
+      targetItem: null,
+      stuckTimer: 0,
+      lastPos: new THREE.Vector3(),
+      waypoints: {
+        DOOR_EAST: new THREE.Vector3(CONFIG.ROOM.width / 2 - 0.2, 0, 0),
+        DOOR_WEST: new THREE.Vector3(-CONFIG.ROOM.width / 2 + 0.2, 0, 0),
+        CENTER: new THREE.Vector3(0, 0, 0),
+        BOT_BASE: new THREE.Vector3(CONFIG.ZONES.BOT.x, 0, CONFIG.ZONES.BOT.z)
+      }
+    };
+
+    function updateBotAI(dt) {
+      const botPos = bot.body.position;
+
+      const moveDist = botPos.distanceTo(BOT_AI.lastPos);
+      if (moveDist < 0.05 * dt) {
+        BOT_AI.stuckTimer += dt;
+      } else {
+        BOT_AI.stuckTimer = Math.max(0, BOT_AI.stuckTimer - dt);
+      }
+      BOT_AI.lastPos.copy(botPos);
+
+      if (bot.grabbedItem) {
+        BOT_AI.state = 'HAUL';
+      } else {
+        BOT_AI.state = 'SEEK';
+      }
+
+      let targetPos = null;
+
+      if (BOT_AI.state === 'HAUL') {
+        if (botPos.x < CONFIG.ROOM.width / 2 - 0.5) {
+          targetPos = BOT_AI.waypoints.DOOR_EAST;
+        } else {
+          targetPos = BOT_AI.waypoints.BOT_BASE;
+        }
+      } else {
+        if (!BOT_AI.targetItem || BOT_AI.targetItem.dead || BOT_AI.targetItem.holder === player) {
+          BOT_AI.targetItem = findBestBotTarget();
+        }
+
+        if (BOT_AI.targetItem) {
+          const itemPos = BOT_AI.targetItem.body.position;
+          
+          if (botPos.x > CONFIG.ROOM.width / 2 && itemPos.x < CONFIG.ROOM.width / 2) {
+            targetPos = BOT_AI.waypoints.DOOR_EAST;
+          } else {
+            targetPos = itemPos;
+          }
+
+          const distToItem = botPos.distanceTo(itemPos);
+          if (distToItem < CONFIG.GRAB_RADIUS) {
+            if (BOT_AI.targetItem.isHeavy) {
+              grabHeavyItem(bot, BOT_AI.targetItem);
+            } else {
+              pickupLightItem(bot, BOT_AI.targetItem);
+            }
+          }
+        } else {
+          targetPos = BOT_AI.waypoints.CENTER;
+        }
+      }
+
+      if (targetPos) {
+        let dirX = targetPos.x - botPos.x;
+        let dirZ = targetPos.z - botPos.z;
+        const len = Math.sqrt(dirX * dirX + dirZ * dirZ);
+
+        if (len > 0.1) {
+          dirX /= len;
+          dirZ /= len;
+
+          if (BOT_AI.stuckTimer > 0.8) {
+            dirZ += (Math.sin(performance.now() * 0.005) > 0 ? 0.8 : -0.8);
+            if (BOT_AI.stuckTimer > 2.5) {
+              BOT_AI.targetItem = null;
+              BOT_AI.stuckTimer = 0;
+            }
+          }
+
+          const currentSpeed = CONFIG.BASE_BOT_SPEED * bot.speedMultiplier;
+          bot.body.velocity.x = dirX * currentSpeed;
+          bot.body.velocity.z = dirZ * currentSpeed;
+          bot.facingAngle = Math.atan2(-dirX, -dirZ);
+        }
+      }
+    }
+
+    function findBestBotTarget() {
+      const botPos = bot.body.position;
+      let bestItem = null;
+      let bestScore = -9999;
+
+      STATE.items.forEach(item => {
+        if (item.dead || item.holder === player) return;
+        const dist = botPos.distanceTo(item.body.position);
+        const valueScore = item.score * 1.5 - dist * 2;
+        if (valueScore > bestScore) {
+          bestScore = valueScore;
+          bestItem = item;
+        }
+      });
+
+      return bestItem;
+    }
+
+    /* ==========================================================================
+       16. STICKMAN PROCEDURAL ANIMATION ENGINE
+       ========================================================================== */
+    function animateStickman(stickman, isMoving, isSprinting, dt) {
+      if (isMoving) {
+        // Faster stride when sprinting
+        const cycleSpeed = isSprinting ? 18.0 : 11.0;
+        stickman.animTime += dt * cycleSpeed;
+
+        const strideSwing = isSprinting ? 0.85 : 0.65;
+        const armSwing = isSprinting ? 0.80 : 0.60;
+
+        // Alternating leg swing
+        stickman.leftLeg.hipPivot.rotation.x = Math.sin(stickman.animTime) * strideSwing;
+        stickman.rightLeg.hipPivot.rotation.x = -Math.sin(stickman.animTime) * strideSwing;
+
+        // Knees bend on back-swing
+        stickman.leftLeg.kneePivot.rotation.x = Math.max(0, -Math.sin(stickman.animTime) * 0.7);
+        stickman.rightLeg.kneePivot.rotation.x = Math.max(0, Math.sin(stickman.animTime) * 0.7);
+
+        // Arms swing counter to legs, unless holding an item
+        if (stickman.grabbedItem) {
+          if (stickman.grabbedItem.isCarried) {
+            // TWO-HANDED LIGHT ITEM CARRY:
+            // Lift both arms forward and inward, cradling the box with both hands
+            stickman.leftArm.shoulderPivot.rotation.x = -Math.PI / 2.3;
+            stickman.leftArm.shoulderPivot.rotation.y = 0.32;
+            stickman.leftArm.shoulderPivot.rotation.z = 0.12;
+            stickman.leftArm.elbowPivot.rotation.x = 0.65;
+
+            stickman.rightArm.shoulderPivot.rotation.x = -Math.PI / 2.3;
+            stickman.rightArm.shoulderPivot.rotation.y = -0.32;
+            stickman.rightArm.shoulderPivot.rotation.z = -0.12;
+            stickman.rightArm.elbowPivot.rotation.x = 0.65;
+          } else {
+            // DRAGGING HEAVY ITEM WITH TETHER:
+            stickman.leftArm.shoulderPivot.rotation.x = -Math.PI / 2.1 + Math.sin(stickman.animTime * 0.5) * 0.06;
+            stickman.leftArm.shoulderPivot.rotation.y = 0;
+            stickman.leftArm.shoulderPivot.rotation.z = 0;
+            stickman.leftArm.elbowPivot.rotation.x = 0.2;
+
+            stickman.rightArm.shoulderPivot.rotation.x = -Math.PI / 2.1 - Math.sin(stickman.animTime * 0.5) * 0.06;
+            stickman.rightArm.shoulderPivot.rotation.y = 0;
+            stickman.rightArm.shoulderPivot.rotation.z = 0;
+            stickman.rightArm.elbowPivot.rotation.x = 0.2;
+          }
+        } else {
+          stickman.leftArm.shoulderPivot.rotation.x = -Math.sin(stickman.animTime) * armSwing;
+          stickman.leftArm.shoulderPivot.rotation.y = 0;
+          stickman.leftArm.shoulderPivot.rotation.z = 0;
+          stickman.rightArm.shoulderPivot.rotation.x = Math.sin(stickman.animTime) * armSwing;
+          stickman.rightArm.shoulderPivot.rotation.y = 0;
+          stickman.rightArm.shoulderPivot.rotation.z = 0;
+          stickman.leftArm.elbowPivot.rotation.x = Math.abs(Math.sin(stickman.animTime)) * 0.35;
+          stickman.rightArm.elbowPivot.rotation.x = Math.abs(Math.sin(stickman.animTime)) * 0.35;
+        }
+
+        // Torso tilts forward when running, bobs up/down
+        stickman.bodyPivot.rotation.x = isSprinting ? 0.26 : 0.12;
+        stickman.bodyPivot.position.y = 0.95 + Math.abs(Math.sin(stickman.animTime)) * 0.06;
+      } else {
+        // Idle return to standing
+        stickman.leftLeg.hipPivot.rotation.x = THREE.MathUtils.lerp(stickman.leftLeg.hipPivot.rotation.x, 0, 0.2);
+        stickman.rightLeg.hipPivot.rotation.x = THREE.MathUtils.lerp(stickman.rightLeg.hipPivot.rotation.x, 0, 0.2);
+        stickman.leftLeg.kneePivot.rotation.x = THREE.MathUtils.lerp(stickman.leftLeg.kneePivot.rotation.x, 0, 0.2);
+        stickman.rightLeg.kneePivot.rotation.x = THREE.MathUtils.lerp(stickman.rightLeg.kneePivot.rotation.x, 0, 0.2);
+
+        if (stickman.grabbedItem) {
+          if (stickman.grabbedItem.isCarried) {
+            stickman.leftArm.shoulderPivot.rotation.x = -Math.PI / 2.3;
+            stickman.leftArm.shoulderPivot.rotation.y = 0.32;
+            stickman.leftArm.shoulderPivot.rotation.z = 0.12;
+            stickman.leftArm.elbowPivot.rotation.x = 0.65;
+
+            stickman.rightArm.shoulderPivot.rotation.x = -Math.PI / 2.3;
+            stickman.rightArm.shoulderPivot.rotation.y = -0.32;
+            stickman.rightArm.shoulderPivot.rotation.z = -0.12;
+            stickman.rightArm.elbowPivot.rotation.x = 0.65;
+          } else {
+            stickman.leftArm.shoulderPivot.rotation.x = -Math.PI / 2.1;
+            stickman.leftArm.shoulderPivot.rotation.y = 0;
+            stickman.leftArm.shoulderPivot.rotation.z = 0;
+            stickman.leftArm.elbowPivot.rotation.x = 0.2;
+
+            stickman.rightArm.shoulderPivot.rotation.x = -Math.PI / 2.1;
+            stickman.rightArm.shoulderPivot.rotation.y = 0;
+            stickman.rightArm.shoulderPivot.rotation.z = 0;
+            stickman.rightArm.elbowPivot.rotation.x = 0.2;
+          }
+        } else {
+          stickman.leftArm.shoulderPivot.rotation.x = THREE.MathUtils.lerp(stickman.leftArm.shoulderPivot.rotation.x, 0, 0.2);
+          stickman.leftArm.shoulderPivot.rotation.y = THREE.MathUtils.lerp(stickman.leftArm.shoulderPivot.rotation.y, 0, 0.2);
+          stickman.leftArm.shoulderPivot.rotation.z = THREE.MathUtils.lerp(stickman.leftArm.shoulderPivot.rotation.z, 0, 0.2);
+          stickman.rightArm.shoulderPivot.rotation.x = THREE.MathUtils.lerp(stickman.rightArm.shoulderPivot.rotation.x, 0, 0.2);
+          stickman.rightArm.shoulderPivot.rotation.y = THREE.MathUtils.lerp(stickman.rightArm.shoulderPivot.rotation.y, 0, 0.2);
+          stickman.rightArm.shoulderPivot.rotation.z = THREE.MathUtils.lerp(stickman.rightArm.shoulderPivot.rotation.z, 0, 0.2);
+          stickman.leftArm.elbowPivot.rotation.x = THREE.MathUtils.lerp(stickman.leftArm.elbowPivot.rotation.x, 0, 0.2);
+          stickman.rightArm.elbowPivot.rotation.x = THREE.MathUtils.lerp(stickman.rightArm.elbowPivot.rotation.x, 0, 0.2);
+        }
+
+        stickman.bodyPivot.rotation.x = THREE.MathUtils.lerp(stickman.bodyPivot.rotation.x, 0, 0.2);
+        stickman.bodyPivot.position.y = THREE.MathUtils.lerp(stickman.bodyPivot.position.y, 0.95, 0.2);
+      }
+    }
+
+    /* ==========================================================================
+       17. STAMINA & SPEED BOOST MANAGEMENT
+       ========================================================================== */
+    const staminaBarFill = document.getElementById('stamina-bar-fill');
+    const staminaPctEl = document.getElementById('stamina-pct');
+    const staminaLabelWrap = document.getElementById('stamina-label-wrap');
+    let wasExhausted = false;
+
+    function updateStamina(dt, isMoving) {
+      const isHaulingHeavy = player.grabbedItem && player.grabbedItem.isHeavy;
+      // Cannot sprint if exhausted or if hauling a heavy object
+      const isTryingToSprint = INPUT.shift && isMoving && !STATE.isExhausted && !isHaulingHeavy;
+
+      if (isTryingToSprint) {
+        // Consume Stamina
+        STATE.stamina -= CONFIG.STAMINA_DRAIN_RATE * dt;
+        if (STATE.stamina <= 0) {
+          STATE.stamina = 0;
+          STATE.isExhausted = true;
+          sound.playExhausted();
+        }
+      } else {
+        // Recovery: Releasing Shift recovers from 0 to 100 within exactly 2 seconds (50/sec)
+        if (!INPUT.shift) {
+          if (STATE.stamina < 100) {
+            STATE.stamina += CONFIG.STAMINA_RECOVER_RATE * dt;
+            if (STATE.stamina >= 100) {
+              STATE.stamina = 100;
+              if (STATE.isExhausted) {
+                STATE.isExhausted = false;
+                sound.playRecovered();
+              }
+            }
+          }
+        }
+      }
+
+      // Update HUD Stamina Bar
+      const pct = Math.round(STATE.stamina);
+      staminaBarFill.style.width = `${pct}%`;
+
+      if (STATE.isExhausted) {
+        staminaBarFill.className = 'stamina-fill exhausted';
+        staminaLabelWrap.className = 'stamina-hud-labels exhausted';
+        staminaPctEl.textContent = 'EXHAUSTED! (RELEASE SHIFT)';
+      } else if (isHaulingHeavy) {
+        staminaBarFill.className = 'stamina-fill';
+        staminaLabelWrap.className = 'stamina-hud-labels';
+        staminaPctEl.textContent = 'HEAVY ITEM: CANNOT SPRINT';
+      } else if (STATE.stamina < 35) {
+        staminaBarFill.className = 'stamina-fill low';
+        staminaLabelWrap.className = 'stamina-hud-labels';
+        staminaPctEl.textContent = `${pct}%`;
+      } else {
+        staminaBarFill.className = 'stamina-fill';
+        staminaLabelWrap.className = 'stamina-hud-labels';
+        staminaPctEl.textContent = `${pct}%`;
+      }
+
+      // Update 3D Floating Stamina Bar above player stickman
+      if (player.staminaBarGroup) {
+        // Face camera
+        player.staminaBarGroup.quaternion.copy(camera.quaternion);
+
+        const ratio = Math.max(0.01, STATE.stamina / 100);
+        player.staminaFillMesh.scale.x = ratio;
+        player.staminaFillMesh.position.x = (ratio - 1) * 0.58;
+
+        if (STATE.isExhausted) {
+          player.staminaFillMesh.material.color.setHex(0xef4444);
+          player.staminaBarGroup.visible = true;
+        } else if (STATE.stamina < 100) {
+          player.staminaFillMesh.material.color.setHex(STATE.stamina < 35 ? 0xfacc15 : 0x38bdf8);
+          player.staminaBarGroup.visible = true;
+        } else {
+          // Hide when full and not boosting
+          player.staminaBarGroup.visible = false;
+        }
+      }
+    }
+
+    /* ==========================================================================
+       18. UI MANAGEMENT & HUD
+       ========================================================================== */
+    const playerScoreEl = document.getElementById('player-score');
+    const botScoreEl = document.getElementById('bot-score');
+    const timerDisplayEl = document.getElementById('timer-display');
+    const timerPillEl = document.getElementById('timer-pill');
+    const statusHintEl = document.getElementById('status-hint');
+    const carryIndicatorEl = document.getElementById('carry-indicator');
+    const carryTextEl = document.getElementById('carry-text');
+
+    const startModal = document.getElementById('start-modal');
+    const startBtn = document.getElementById('start-btn');
+    const gameOverModal = document.getElementById('game-over-modal');
+    const restartBtn = document.getElementById('restart-btn');
+    const endTitle = document.getElementById('end-title');
+    const endSubtitle = document.getElementById('end-subtitle');
+    const finalPlayerScore = document.getElementById('final-player-score');
+    const finalBotScore = document.getElementById('final-bot-score');
+
+    const muteBtn = document.getElementById('mute-btn');
+    const soundIconOn = document.getElementById('sound-icon-on');
+    const soundIconOff = document.getElementById('sound-icon-off');
+
+    function updateScoreUI() {
+      playerScoreEl.textContent = STATE.playerScore;
+      botScoreEl.textContent = STATE.botScore;
+    }
+
+    function bumpScoreCard(team) {
+      const card = document.getElementById(`${team}-score-card`);
+      if (card) {
+        card.classList.add('bump');
+        setTimeout(() => card.classList.remove('bump'), 220);
+      }
+    }
+
+    function showCarryIndicator(type) {
+      carryIndicatorEl.className = type;
+      if (type === 'heavy') {
+        carryTextEl.textContent = 'HAULING HEAVY ITEM (CANNOT SPRINT - 50% SPEED)';
+      } else {
+        carryTextEl.textContent = 'CARRYING LIGHT ITEM (NORMAL SPEED) • PRESS SPACE TO DROP';
+      }
+    }
+
+    function hideCarryIndicator() {
+      carryIndicatorEl.className = '';
+    }
+
+    muteBtn.addEventListener('click', () => {
+      sound.muted = !sound.muted;
+      soundIconOn.style.display = sound.muted ? 'none' : 'block';
+      soundIconOff.style.display = sound.muted ? 'block' : 'none';
+      if (!sound.muted) sound.init();
+    });
+
+    startBtn.addEventListener('click', () => {
+      sound.init();
+      startModal.classList.add('hidden');
+      startMatch();
+    });
+
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('autostart') === 'true') {
+      startModal.classList.add('hidden');
+      startMatch();
+      if (urlParams.get('test') === 'carry_light') {
+        setTimeout(() => {
+          const lightItem = STATE.items.find(it => !it.dead && !it.isHeavy);
+          if (lightItem) {
+            player.body.position.set(-6, 0, 0);
+            pickupLightItem(player, lightItem);
+          }
+        }, 80);
+      }
+    }
+
+    restartBtn.addEventListener('click', () => {
+      sound.init();
+      gameOverModal.classList.add('hidden');
+      startMatch();
+    });
+
+    function startMatch() {
+      STATE.active = true;
+      STATE.timeLeft = CONFIG.MATCH_DURATION;
+      STATE.playerScore = 0;
+      STATE.botScore = 0;
+      STATE.stamina = 100;
+      STATE.isExhausted = false;
+      updateScoreUI();
+      timerPillEl.classList.remove('urgent');
+
+      player.body.position.set(-11, 0, 0);
+      player.body.velocity.set(0, 0, 0);
+      player.facingAngle = 0;
+      dropItem(player);
+
+      bot.body.position.set(11, 0, 0);
+      bot.body.velocity.set(0, 0, 0);
+      bot.facingAngle = Math.PI;
+      dropItem(bot);
+
+      spawnInitialItems();
+    }
+
+    function endMatch() {
+      STATE.active = false;
+      dropItem(player);
+      dropItem(bot);
+
+      player.body.velocity.set(0, 0, 0);
+      bot.body.velocity.set(0, 0, 0);
+
+      finalPlayerScore.textContent = STATE.playerScore;
+      finalBotScore.textContent = STATE.botScore;
+
+      if (STATE.playerScore > STATE.botScore) {
+        endTitle.textContent = 'VICTORY!';
+        endTitle.className = 'modal-title victory';
+        endSubtitle.textContent = `You dominated the match by ${STATE.playerScore - STATE.botScore} points!`;
+        sound.playGameOver(true);
+      } else if (STATE.botScore > STATE.playerScore) {
+        endTitle.textContent = 'DEFEAT!';
+        endTitle.className = 'modal-title defeat';
+        endSubtitle.textContent = `The Bot out-hauled you by ${STATE.botScore - STATE.playerScore} points!`;
+        sound.playGameOver(false);
+      } else {
+        endTitle.textContent = 'DRAW!';
+        endTitle.className = 'modal-title tie';
+        endSubtitle.textContent = 'Both teams tied with equal scores!';
+        sound.playGameOver(true);
+      }
+
+      gameOverModal.classList.remove('hidden');
+    }
+
+    /* ==========================================================================
+       19. MAIN GAME & RENDER LOOP
+       ========================================================================== */
+    let lastTime = 0;
+    let tickSecond = -1;
+
+    function gameLoop(time) {
+      requestAnimationFrame(gameLoop);
+
+      if (!lastTime) {
+        lastTime = time || performance.now();
+        renderer.render(scene, camera);
+        return;
+      }
+
+      const rawDt = (time - lastTime) / 1000;
+      lastTime = time;
+      const dt = Math.max(0.001, Math.min(rawDt > 0 ? rawDt : 0.016, 0.1));
+
+      let playerIsMoving = false;
+      let playerIsSprinting = false;
+
+      if (STATE.active) {
+        // Countdown
+        STATE.timeLeft -= dt;
+        if (STATE.timeLeft <= 0) {
+          STATE.timeLeft = 0;
+          timerDisplayEl.textContent = '00:00';
+          endMatch();
+          return;
+        }
+
+        const sec = Math.ceil(STATE.timeLeft);
+        const mins = Math.floor(sec / 60);
+        const remSec = sec % 60;
+        timerDisplayEl.textContent = `${mins.toString().padStart(2, '0')}:${remSec.toString().padStart(2, '0')}`;
+
+        if (sec <= 10) {
+          timerPillEl.classList.add('urgent');
+          if (sec !== tickSecond) {
+            tickSecond = sec;
+            sound.playTick();
+          }
+        }
+
+        // 1. Process Movement Inputs
+        let moveX = 0;
+        let moveZ = 0;
+        if (INPUT.up) moveZ -= 1;
+        if (INPUT.down) moveZ += 1;
+        if (INPUT.left) moveX -= 1;
+        if (INPUT.right) moveX += 1;
+
+        // Auto pathing towards clicked light item if no manual keys pressed
+        const hasManualInput = (moveX !== 0 || moveZ !== 0);
+        if (hasManualInput) {
+          playerAutoTarget = null;
+        } else if (playerAutoTarget) {
+          if (playerAutoTarget.dead || playerAutoTarget.holder) {
+            playerAutoTarget = null;
+          } else {
+            const dx = playerAutoTarget.body.position.x - player.body.position.x;
+            const dz = playerAutoTarget.body.position.z - player.body.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist <= CONFIG.GRAB_RADIUS * 1.1) {
+              pickupLightItem(player, playerAutoTarget);
+              playerAutoTarget = null;
+            } else {
+              moveX = dx / dist;
+              moveZ = dz / dist;
+            }
+          }
+        }
+
+        const moveLen = Math.sqrt(moveX * moveX + moveZ * moveZ);
+        playerIsMoving = moveLen > 0.05;
+
+        // Update Stamina based on movement and Shift key
+        updateStamina(dt, playerIsMoving);
+
+        const isHaulingHeavy = player.grabbedItem && player.grabbedItem.isHeavy;
+
+        if (playerIsMoving) {
+          moveX /= moveLen;
+          moveZ /= moveLen;
+
+          // Determine current speed tier:
+          // Heavy items CANNOT sprint
+          let currentSpeed = CONFIG.BASE_PLAYER_SPEED;
+
+          if (isHaulingHeavy) {
+            // Cannot use run button with heavy items
+            currentSpeed = CONFIG.BASE_PLAYER_SPEED * CONFIG.HEAVY_ITEM.speedMultiplier;
+            playerIsSprinting = false;
+          } else if (STATE.isExhausted) {
+            currentSpeed = CONFIG.EXHAUSTED_SPEED * player.speedMultiplier;
+          } else if (INPUT.shift && STATE.stamina > 0) {
+            currentSpeed = CONFIG.BOOST_PLAYER_SPEED * player.speedMultiplier;
+            playerIsSprinting = true;
+          } else {
+            currentSpeed = CONFIG.BASE_PLAYER_SPEED * player.speedMultiplier;
+          }
+
+          player.body.velocity.x = moveX * currentSpeed;
+          player.body.velocity.z = moveZ * currentSpeed;
+          player.facingAngle = Math.atan2(-moveX, -moveZ);
+        } else {
+          player.body.velocity.x *= 0.75;
+          player.body.velocity.z *= 0.75;
+        }
+
+        // 2. Process Bot AI Movement
+        updateBotAI(dt);
+
+        // 3. Step Cannon.js Physics
+        world.step(1 / 60, dt, 3);
+
+        // Strict Grounding & Anti-Bug Constraints:
+        // Characters cannot jump, climb on top of objects, or pop vertically
+        player.body.position.y = 0;
+        player.body.velocity.y = 0;
+        bot.body.position.y = 0;
+        bot.body.velocity.y = 0;
+
+        // Furniture items stay strictly on the floor and cannot be flung into the air
+        STATE.items.forEach(item => {
+          if (!item.dead && !item.isCarried) {
+            item.body.position.y = 0;
+            item.body.velocity.y = 0;
+          }
+        });
+
+        // 4. Update Dragging & Spring Tethers
+        updateDragging(player, dt);
+        updateDragging(bot, dt);
+
+        // 5. Check Drop-Off Zones
+        checkDropOffZones();
+
+        // 6. Proximity Tooltip
+        if (!player.grabbedItem) {
+          let nearItem = false;
+          STATE.items.forEach(item => {
+            if (!item.dead && player.body.position.distanceTo(item.body.position) < CONFIG.GRAB_RADIUS) {
+              nearItem = true;
+            }
+          });
+          if (nearItem) {
+            statusHintEl.classList.add('visible');
+          } else {
+            statusHintEl.classList.remove('visible');
+          }
+        } else {
+          statusHintEl.classList.remove('visible');
+        }
+      }
+
+      // Sync Meshes to Cannon Bodies & Animate Stickman Limbs
+      // Player Stickman
+      player.mesh.position.copy(player.body.position);
+      player.mesh.rotation.y = THREE.MathUtils.lerp(player.mesh.rotation.y, player.facingAngle, 0.22);
+      animateStickman(player, playerIsMoving, playerIsSprinting, dt);
+
+      // Bot Stickman
+      const botIsMoving = bot.body.velocity.length() > 0.4;
+      bot.mesh.position.copy(bot.body.position);
+      bot.mesh.rotation.y = THREE.MathUtils.lerp(bot.mesh.rotation.y, bot.facingAngle, 0.22);
+      animateStickman(bot, botIsMoving, false, dt);
+
+      // Furniture Items
+      STATE.items.forEach(item => {
+        if (!item.dead) {
+          item.group.position.copy(item.body.position);
+          item.group.quaternion.copy(item.body.quaternion);
+          const pulse = 1 + Math.sin(time * 0.006) * 0.12;
+          item.glowRing.scale.set(pulse, pulse, pulse);
+        }
+      });
+
+      // Update Particles
+      updateParticles(dt);
+
+      const zonePulse = 1 + Math.sin(time * 0.004) * 0.08;
+      playerZoneObj.borderLine.scale.set(zonePulse, 1, zonePulse);
+      botZoneObj.borderLine.scale.set(zonePulse, 1, zonePulse);
+
+      renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(gameLoop);
+    spawnInitialItems();
+  </script>
+</body>
+</html>
